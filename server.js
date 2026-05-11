@@ -34,6 +34,10 @@ app.get('/users', (req, res) => {
 // ================= ADD USER =================
 app.post('/users', (req, res) => {
 
+    console.log("========== NEW REQUEST ==========");
+    console.log("BODY:", req.body);
+    console.log("HEADERS:", req.headers);
+    console.log("================================");
     // CHECK EMAIL UNIQUE
     const emailExists = users.find(
         u => u.email === req.body.email
@@ -41,7 +45,9 @@ app.post('/users', (req, res) => {
 
     if (emailExists) {
         return res.status(400).json({
-            message: 'Email already exists'
+            success: false,
+            message: 'Email already exists',
+            infos: req.body
         });
     }
 
@@ -52,6 +58,7 @@ app.post('/users', (req, res) => {
 
     if (usernameExists) {
         return res.status(400).json({
+            success: false,
             message: 'Username already exists'
         });
     }
@@ -69,9 +76,11 @@ app.post('/users', (req, res) => {
 
     users.push(user);
 
-    console.log('USERS DB:', users);
-
-    res.json(user);
+    return res.json({
+        success: true,
+        message: 'User added successfully',
+        data: user
+    });
 });
 
 
@@ -82,8 +91,9 @@ app.delete('/users/:id', (req, res) => {
         u => u.id != req.params.id
     );
 
-    res.json({
-        message: 'deleted'
+    return res.json({
+        success: true,
+        message: 'user deleted',
     });
 });
 
@@ -97,6 +107,7 @@ app.put('/users/:id', (req, res) => {
 
     if (!user) {
         return res.status(404).json({
+            success: false,
             message: 'User not found'
         });
     }
@@ -111,7 +122,8 @@ app.put('/users/:id', (req, res) => {
         );
 
         if (emailExists) {
-            return res.status(400).json({
+            return res.json({
+                success: false,
                 message: 'Email already exists'
             });
         }
@@ -129,14 +141,16 @@ app.put('/users/:id', (req, res) => {
 
         // old password required
         if (!req.body.oldPassword) {
-            return res.status(400).json({
+            return res.json({
+                success: false,
                 message: 'Old password required'
             });
         }
 
         // old password check
         if (req.body.oldPassword !== user.password) {
-            return res.status(400).json({
+            return res.json({
+                success: false,
                 message: 'Old password incorrect'
             });
         }
@@ -144,7 +158,11 @@ app.put('/users/:id', (req, res) => {
         user.password = req.body.newPassword;
     }
 
-    res.json(user);
+    return res.json({
+        success: true,
+        message: 'User updated successfully',
+        data: user
+    });
 });
 
 
