@@ -1,185 +1,134 @@
 const express = require('express');
 const cors = require('cors');
+const db = require("./db");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// fake DB
-let users = [
-    {
-        id: 1,
-        username: 'Ali',
-        email: 'ali@test.com',
-        password: '123456',
-        role: 'USER'
-    },
-    {
-        id: 2,
-        username: 'Sara',
-        email: 'sara@test.com',
-        password: '123456',
-        role: 'ADMIN'
-    }
-];
-
-
-// ================= GET USERS =================
-app.get('/users', (req, res) => {
-    res.json(users);
+// GET users
+app.get("/users", (req, res) => {
+    db.query("SELECT * FROM users", (err, results) => {
+        if (err) return res.status(500).json(err);
+        res.json(results);
+    });
 });
 
+app.listen(3000, () => {
+    console.log("Server running on port 3000");
+});
 // ================= ADD USER =================
 app.post('/users', (req, res) => {
 
-    const errors = [];
+    const { username, email, password, role } = req.body;
 
-    // ================= EMAIL CHECK =================
-    const emailExists = users.find(
-        u => u.email === req.body.email
-    );
+    db.query(
+        "SELECT * FROM users WHERE email = ? OR username = ?",
+        [email, username],
+        (err, results) => {
 
-    if (emailExists) {
-        errors.push({
-            field: 'email',
-            message: 'Email already exists'
-        });
-    }
+            if (err) return res.status(500).json(err);
 
-    // ================= USERNAME CHECK =================
-    const usernameExists = users.find(
-        u => u.username === req.body.username
-    );
+            const errors = [];
 
-    if (usernameExists) {
-        errors.push({
-            field: 'username',
-            message: 'Username already exists'
-        });
-    }
+            const emailExists = results.some(u => u.email === email);
+            const usernameExists = results.some(u => u.username === username);
 
-    // ================= RETURN ERRORS =================
-    if (errors.length > 0) {
+            if (emailExists) {
+                errors.push({
+                    field: "email",
+                    message: "Email already exists"
+                });
+            }
 
-        return res.status(400).json({
+            if (usernameExists) {
+                errors.push({
+                    field: "username",
+                    message: "Username already exists"
+                });
+            }
 
-            success: false,
+            if (errors.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        errors.length === 2
+                            ? "Email and username already exist"
+                            : errors[0].message,
+                    errors
+                });
+            }
 
-            message: 'Validation failed',
+            // INSERT USER
+            db.query(
+                "INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)",
+                [username, email, password, role || "USER"],
+                (err, result) => {
 
-            data: errors
+                    if (err) return res.status(500).json(err);
 
-        });
-    }
+                    res.status(201).json({
+                        success: true,
+                        message: "User added successfully",
+                        data: {
+                            id: result.insertId,
+                            username,
+                            email,
+                            role
+                        }
+                    });
 
-    // ================= CREATE USER =================
-    const user = {
-        id: Date.now(),
-        username: req.body.username,
-        email: req.body.email,
-        password: req.body.password,
-        role: req.body.role,
-        created_at: new Date(),
-        created_by: null
-    };
-
-    users.push(user);
-
-    // ================= SUCCESS =================
-    return res.status(201).json({
-
-        success: true,
-
-        message: 'User added successfully',
-
-        data: user
-
-    });
+                }
+            );
+        }
+    );  
 });
 
 // ================= DELETE USER =================
-app.delete('/users/:id', (req, res) => {
+app.delete("/users/:id", (req, res) => {
 
-    users = users.filter(
-        u => u.id != req.params.id
+    db.query(
+        "DELETE FROM users WHERE id = ?",
+        [req.params.id],
+        (err) => {
+
+            if (err) return res.status(500).json(err);
+
+            res.json({
+                success: true,
+                message: "User deleted"
+            });
+
+        }
     );
 
-    return res.json({
-        success: true,
-        message: 'user deleted',
-    });
 });
 
 
 // ================= UPDATE USER =================
 app.put('/users/:id', (req, res) => {
 
-    const user = users.find(
-        u => u.id == req.params.id
+    const { role } = req.body;
+
+    db.query(
+        "UPDATE users SET role = ? WHERE id = ?",
+        [role, req.params.id],
+        (err) => {
+
+            if (err) return res.status(500).json(err);
+
+            res.json({
+                success: true,
+                message: "Role updated",
+                data: {
+                    id: req.params.id,
+                    role
+                }
+            });
+
+        }
     );
-
-    if (!user) {
-        return res.status(404).json({
-            success: false,
-            message: 'User not found'
-        });
-    }
-
-    // EMAIL UNIQUE
-    if (req.body.email) {
-
-        const emailExists = users.find(
-            u =>
-                u.email === req.body.email &&
-                u.id != req.params.id
-        );
-
-        // SI EMAIL EXISTE
-        if (emailExists) {
-
-            return res.status(400).json({
-                success: false,
-                message: 'Email already exists'
-            });
-        }
-
-        // UPDATE EMAIL
-        user.email = req.body.email;
-    }
-
-    // ROLE UPDATE
-    if (req.body.role) {
-        user.role = req.body.role;
-    }
-
-    // PASSWORD UPDATE
-    if (req.body.newPassword && req.body.newPassword.length > 0) {
-
-        // old password required
-        if (!req.body.oldPassword) {
-            return res.status(400).json({
-                success: false,
-                message: 'Old password required'
-            });
-        }
-
-        // old password check
-        if (req.body.oldPassword !== user.password) {
-            return res.status(400).json({
-                success: false,
-                message: 'Old password incorrect'
-            });
-        }
-
-        user.password = req.body.newPassword;
-    }
-
-    return res.json({
-        success: true,
-        message: 'User updated successfully',
-        data: user
-    });
 });
 
 
