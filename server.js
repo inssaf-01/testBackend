@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const db = require("./db");
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 
@@ -118,9 +120,95 @@ app.put('/users/:id', (req, res) => {
         }
     );
 });
+// ================= LOGIN =================
+app.post('/auth/login', (req, res) => {
 
+    const { login, password } = req.body;
+
+    if (!login || !password) {
+        return res.status(400).json({
+            success: false,
+            message: "Login and password required"
+        });
+    }
+
+    db.query(
+        "SELECT * FROM users WHERE login = ?",
+        [login],
+        async (err, results) => {
+
+            if (err) {
+                return res.status(500).json({
+                    success: false,
+                    message: "Database error"
+                });
+            }
+
+            if (results.length === 0) {
+                return res.status(401).json({
+                    success: false,
+                    message: "User not found"
+                });
+            }
+
+            const user = results[0];
+
+            // ⚠️ si tu n'as pas bcrypt encore → comparaison simple
+            const isMatch = password === user.password;
+
+            if (!isMatch) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Invalid credentials"
+                });
+            }
+
+            // 🔐 CREATE TOKEN
+            const token = jwt.sign(
+                {
+                    id: user.id,
+                    role: user.role,
+                    login: user.login
+                },
+                "SECRET_KEY_123",
+                { expiresIn: "1h" }
+            );
+
+            res.json({
+                success: true,
+                message: "Login successful",
+                token,
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    login: user.login,
+                    role: user.role
+                }
+            });
+        }
+    );
+});
 
 // ================= START SERVER =================
 app.listen(3000, () => {
     console.log('Server running on http://localhost:3000');
 });
+//functions : 
+function authMiddleware(req, res, next) {
+
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+        return res.status(401).json({ message: "No token" });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    try {
+        const decoded = jwt.verify(token, "SECRET_KEY_123");
+        req.user = decoded;
+        next(); 
+    } catch (err) {
+        return res.status(401).json({ message: "Invalid token" });
+    }
+}
