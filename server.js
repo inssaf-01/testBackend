@@ -23,66 +23,57 @@ app.post('/users', (req, res) => {
 
     const { username, login, password, role } = req.body;
 
+    if (!username || !login || !password) {
+        return res.status(400).json({
+            success: false,
+            message: "Missing fields"
+        });
+    }
+
+    // 1 seule requête
     db.query(
-        "SELECT * FROM users WHERE login = ? OR username = ?",
-        [login, username],
-        (err, results) => {
+        "INSERT INTO users (username, login, password, role) VALUES (?, ?, ?, ?)",
+        [username, login, password, role || "USER"],
+        (err, result) => {
 
-            if (err) return res.status(500).json(err);
+            if (err) {
+                console.log(err);
+                // DUPLICATE KEY
+                if (err.code === "ER_DUP_ENTRY") {
 
-            const errors = [];
+                    if (err.message.includes("username")) {
+                        return res.status(400).json({
+                            success: false,
+                            message: "username already exists"
+                        });
+                    }
 
-            const loginExists = results.some(u => u.login === login);
-            const usernameExists = results.some(u => u.username === username);
-
-            if (loginExists) {
-                errors.push({
-                    field: "login",
-                    message: "login already exists"
-                });
-            }
-
-            if (usernameExists) {
-                errors.push({
-                    field: "username",
-                    message: "Username already exists"
-                });
-            }
-
-            if (errors.length > 0) {
-                return res.status(400).json({
-                    success: false,
-                    message:
-                        errors.length === 2
-                            ? "login and username already exist"
-                            : errors[0].message,
-                    errors
-                });
-            }
-
-            // INSERT USER
-            db.query(
-                "INSERT INTO users (username, login, password, role) VALUES (?, ?, ?, ?)",
-                [username, login, password, role || "USER"],
-                (err, result) => {
-
-                    if (err) return res.status(500).json(err);
-
-                    res.status(201).json({
-                        success: true,
-                        message: "User added successfully",
-                        data: {
-                            id: result.insertId,
-                            username,
-                            login,
-                            role
-                        }
-                    });
-
+                    if (err.message.includes("login")) {
+                        return res.status(400).json({
+                            success: false,
+                            message: "login already exists"
+                        });
+                    }
                 }
-            );
+
+                return res.status(500).json({
+                    success: false,
+                    message: "Database error"
+                });
+            }
+
+            res.status(201).json({
+                success: true,
+                message: "User created successfully",
+                data: {
+                    id: result.insertId,
+                    username,
+                    login,
+                    role
+                }
+            });
         }
-    );  
+    );
 });
 
 // ================= DELETE USER =================
