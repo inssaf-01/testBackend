@@ -21,24 +21,24 @@ app.listen(3000, () => {
 // ================= ADD USER =================
 app.post('/users', (req, res) => {
 
-    const { username, email, password, role } = req.body;
+    const { username, login, password, role } = req.body;
 
     db.query(
-        "SELECT * FROM users WHERE email = ? OR username = ?",
-        [email, username],
+        "SELECT * FROM users WHERE login = ? OR username = ?",
+        [login, username],
         (err, results) => {
 
             if (err) return res.status(500).json(err);
 
             const errors = [];
 
-            const emailExists = results.some(u => u.email === email);
+            const loginExists = results.some(u => u.login === login);
             const usernameExists = results.some(u => u.username === username);
 
-            if (emailExists) {
+            if (loginExists) {
                 errors.push({
-                    field: "email",
-                    message: "Email already exists"
+                    field: "login",
+                    message: "login already exists"
                 });
             }
 
@@ -54,7 +54,7 @@ app.post('/users', (req, res) => {
                     success: false,
                     message:
                         errors.length === 2
-                            ? "Email and username already exist"
+                            ? "login and username already exist"
                             : errors[0].message,
                     errors
                 });
@@ -62,8 +62,8 @@ app.post('/users', (req, res) => {
 
             // INSERT USER
             db.query(
-                "INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)",
-                [username, email, password, role || "USER"],
+                "INSERT INTO users (username, login, password, role) VALUES (?, ?, ?, ?)",
+                [username, login, password, role || "USER"],
                 (err, result) => {
 
                     if (err) return res.status(500).json(err);
@@ -74,7 +74,7 @@ app.post('/users', (req, res) => {
                         data: {
                             id: result.insertId,
                             username,
-                            email,
+                            login,
                             role
                         }
                     });
