@@ -30,40 +30,50 @@ app.get('/users', (req, res) => {
     res.json(users);
 });
 
-
 // ================= ADD USER =================
 app.post('/users', (req, res) => {
 
-    console.log("========== NEW REQUEST ==========");
-    console.log("BODY:", req.body);
-    console.log("HEADERS:", req.headers);
-    console.log("================================");
-    // CHECK EMAIL UNIQUE
+    const errors = [];
+
+    // ================= EMAIL CHECK =================
     const emailExists = users.find(
         u => u.email === req.body.email
     );
 
     if (emailExists) {
-        return res.status(400).json({
-            success: false,
-            message: 'Email already exists',
-            infos: req.body
+        errors.push({
+            field: 'email',
+            message: 'Email already exists'
         });
     }
 
-    // CHECK USERNAME UNIQUE
+    // ================= USERNAME CHECK =================
     const usernameExists = users.find(
         u => u.username === req.body.username
     );
 
     if (usernameExists) {
-        return res.status(400).json({
-            success: false,
+        errors.push({
+            field: 'username',
             message: 'Username already exists'
         });
     }
 
-    // CREATE USER
+    // ================= RETURN ERRORS =================
+    if (errors.length > 0) {
+
+        return res.status(400).json({
+
+            success: false,
+
+            message: 'Validation failed',
+
+            data: errors
+
+        });
+    }
+
+    // ================= CREATE USER =================
     const user = {
         id: Date.now(),
         username: req.body.username,
@@ -76,13 +86,17 @@ app.post('/users', (req, res) => {
 
     users.push(user);
 
-    return res.json({
+    // ================= SUCCESS =================
+    return res.status(201).json({
+
         success: true,
+
         message: 'User added successfully',
+
         data: user
+
     });
 });
-
 
 // ================= DELETE USER =================
 app.delete('/users/:id', (req, res) => {
@@ -121,13 +135,16 @@ app.put('/users/:id', (req, res) => {
                 u.id != req.params.id
         );
 
+        // SI EMAIL EXISTE
         if (emailExists) {
-            return res.json({
+
+            return res.status(400).json({
                 success: false,
                 message: 'Email already exists'
             });
         }
 
+        // UPDATE EMAIL
         user.email = req.body.email;
     }
 
@@ -141,7 +158,7 @@ app.put('/users/:id', (req, res) => {
 
         // old password required
         if (!req.body.oldPassword) {
-            return res.json({
+            return res.status(400).json({
                 success: false,
                 message: 'Old password required'
             });
@@ -149,7 +166,7 @@ app.put('/users/:id', (req, res) => {
 
         // old password check
         if (req.body.oldPassword !== user.password) {
-            return res.json({
+            return res.status(400).json({
                 success: false,
                 message: 'Old password incorrect'
             });
