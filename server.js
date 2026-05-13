@@ -12,6 +12,7 @@ app.use(express.json());
 // routes
 app.use('/users', usersRoutes);
 app.use('/auth', authRoutes);
+app.use('/uploads', express.static('uploads'));
 
 app.listen(3000, () => {
     console.log('Server running on http://localhost:3000');

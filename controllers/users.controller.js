@@ -1,5 +1,8 @@
 const db = require('../db');
 const bcrypt = require('bcrypt');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 
 // GET USERS
 exports.getAllUsers = (req, res) => {
@@ -120,3 +123,135 @@ exports.getUserStats = (req, res) => {
         }
     );
 };
+// Gestion des images 
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadPath = './uploads/photos';
+
+        if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+        }
+
+        cb(null, uploadPath);
+    },
+
+    filename: (req, file, cb) => {
+        const uniqueName =
+            Date.now() + '-' + Math.round(Math.random() * 1E9)
+            + path.extname(file.originalname);
+
+        cb(null, uniqueName);
+    }
+});
+exports.getProfileImage = (req, res) => {
+    const userId = req.params.userId;
+
+    db.query(
+        `SELECT file_path
+         FROM user_files
+         WHERE user_id = ?
+         AND file_type = 'PHOTO'
+         ORDER BY id DESC
+         LIMIT 1`,
+        [userId],
+        (err, results) => {
+
+            if (err) {
+                return res.status(500).json({
+                    success: false,
+                    message: "Database error"
+                });
+            }
+
+            if (!results.length) {
+                return res.status(404).json({
+                    success: false,
+                    message: "No profile image found"
+                });
+            }
+
+            const filePath = path.resolve(results[0].file_path);
+
+            console.log("DB path =", results[0].file_path);
+            console.log("Resolved path =", filePath);
+            console.log("Exists =", fs.existsSync(filePath));
+
+            if (!fs.existsSync(filePath)) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Image file not found"
+                });
+            }
+
+            return res.sendFile(filePath);
+        }
+    );
+};
+
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png/;
+        const ext = allowedTypes.test(
+            path.extname(file.originalname).toLowerCase()
+        );
+
+        if (ext) {
+            return cb(null, true);
+        }
+
+        cb(new Error("Only images are allowed"));
+    }
+}).single('file');
+exports.uploadProfileImage = (req, res) => {
+
+    upload(req, res, (err) => {
+
+        if (err) {
+            return res.status(400).json({
+                success: false,
+                message: err.message
+            });
+        }
+
+        const { user_id } = req.body;
+
+        if (!req.file || !user_id) {
+            return res.status(400).json({
+                success: false,
+                message: "Missing file or user_id"
+            });
+        }
+
+        const filePath = `uploads/photos/${req.file.filename}`;
+
+        db.query(
+            `INSERT INTO user_files
+            (user_id, file_type, file_path, original_name)
+            VALUES (?, 'PHOTO', ?, ?)`,
+            [
+                user_id,
+                filePath,
+                req.file.originalname
+            ],
+            (err) => {
+
+                if (err) {
+                    return res.status(500).json({
+                        success: false,
+                        message: "Database error"
+                    });
+                }
+
+                res.json({
+                    success: true,
+                    message: "Profile image uploaded successfully",
+                    file_path: filePath
+                });
+            }
+        );
+    });
+}; 
