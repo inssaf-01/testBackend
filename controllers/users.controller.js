@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt');
 // GET USERS
 exports.getAllUsers = (req, res) => {
 
-    db.query("SELECT * FROM users", (err, results) => {
+    db.query("SELECT id,username,login,role FROM users", (err, results) => {
         if (err) return res.status(500).json(err);
         res.json(results);
     });
@@ -97,6 +97,26 @@ exports.updateUser = (req, res) => {
                     role
                 }
             });
+        }
+    );
+};
+exports.getUserStats = (req, res) => {
+
+    db.query(
+        "SELECT role, COUNT(*) as count FROM users GROUP BY role",
+        (err, results) => {
+
+            if (err) return res.status(500).json(err);
+
+            let admin = 0;
+            let user = 0;
+
+            results.forEach(r => {
+                if (r.role === 'ADMIN') admin = r.count;
+                if (r.role === 'USER') user = r.count;
+            });
+
+            res.json({ admin, user });
         }
     );
 };
