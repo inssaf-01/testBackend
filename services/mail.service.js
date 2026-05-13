@@ -10,7 +10,6 @@ const transporter = nodemailer.createTransport({
 
 exports.sendResetCodeEmail = async (to, code) => {
     try {
-        console.log("Sending email to:", to);
 
         const info = await transporter.sendMail({
             from: 'ton_vrai_gmail@gmail.com',
@@ -22,8 +21,6 @@ exports.sendResetCodeEmail = async (to, code) => {
                 <h1>${code}</h1>
             `
         });
-
-        console.log("EMAIL SUCCESS =>", info.response);
 
         return true;
 

@@ -1,4 +1,5 @@
 const db = require('../db');
+const bcrypt = require('bcrypt');
 
 // GET USERS
 exports.getAllUsers = (req, res) => {
@@ -10,7 +11,7 @@ exports.getAllUsers = (req, res) => {
 };
 
 // CREATE USER
-exports.createUser = (req, res) => {
+exports.createUser = async (req, res) => {
 
     const { username, login, password, role } = req.body;
 
@@ -20,49 +21,42 @@ exports.createUser = (req, res) => {
             message: "Missing fields"
         });
     }
+    try {
+        // 🔐 HASH PASSWORD
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-    db.query(
-        "INSERT INTO users (username, login, password, role) VALUES (?, ?, ?, ?)",
-        [username, login, password, role || "USER"],
-        (err, result) => {
+        db.query(
+            "INSERT INTO users (username, login, password, role) VALUES (?, ?, ?, ?)",
+            [username, login, hashedPassword, role || "USER"],
+            (err, result) => {
 
-            if (err) {
-
-                if (err.code === "ER_DUP_ENTRY") {
-
-                    if (err.message.includes("username")) {
+                if (err) {
+                    if (err.code === "ER_DUP_ENTRY") {
                         return res.status(400).json({
                             success: false,
-                            message: "username already exists"
+                            message: "User already exists"
                         });
                     }
 
-                    if (err.message.includes("login")) {
-                        return res.status(400).json({
-                            success: false,
-                            message: "login already exists"
-                        });
-                    }
+                    return res.status(500).json({
+                        success: false,
+                        message: "Database error"
+                    });
                 }
 
-                return res.status(500).json({
-                    success: false,
-                    message: "Database error"
+                res.status(201).json({
+                    success: true,
+                    message: "User created successfully"
                 });
             }
+        );
 
-            res.status(201).json({
-                success: true,
-                message: "User created successfully",
-                data: {
-                    id: result.insertId,
-                    username,
-                    login,
-                    role
-                }
-            });
-        }
-    );
+    } catch (e) {
+        return res.status(500).json({
+            success: false,
+            message: "Hashing error"
+        });
+    }
 };
 
 // DELETE USER

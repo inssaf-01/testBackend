@@ -2,64 +2,38 @@ const db = require('../db');
 const jwt = require('jsonwebtoken');
 const { generateOTP } = require('../utils/otp.generator');
 const { sendResetCodeEmail } = require('../services/mail.service');
+const bcrypt = require('bcrypt');
 
-exports.login = (req, res) => {
+exports.login = async (req, res) => {
 
     const { login, password } = req.body;
-
-    if (!login || !password) {
-        return res.status(400).json({
-            success: false,
-            message: "Login and password required"
-        });
-    }
 
     db.query(
         "SELECT * FROM users WHERE login = ?",
         [login],
-        (err, results) => {
+        async (err, results) => {
 
-            if (err) {
-                return res.status(500).json({
-                    success: false,
-                    message: "Database error"
-                });
-            }
+            if (err) return res.status(500).json({ message: "DB error" });
 
             if (!results.length) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Invalid credentials"
-                });
+                return res.status(401).json({ message: "Invalid credentials" });
             }
 
             const user = results[0];
 
-            const isMatch = password === user.password;
+            const isMatch = await bcrypt.compare(password, user.password);
 
             if (!isMatch) {
-                return res.status(401).json({
-                    success: false,
-                    message: "Invalid credentials"
-                });
+                return res.status(401).json({ message: "Invalid credentials" });
             }
 
             const token = jwt.sign(
-                {
-                    id: user.id,
-                    role: user.role,
-                    login: user.login
-                },
+                { id: user.id, role: user.role, login: user.login },
                 "SECRET_KEY_123",
                 { expiresIn: "1h" }
             );
 
-            res.json({
-                success: true,
-                message: "Login successful",
-                token,
-                user
-            });
+            res.json({ token, user });
         }
     );
 };
@@ -129,7 +103,6 @@ exports.sendResetCode = (req, res) => {
     );
 };
 
-// VERIFY RESET CODE
 // VERIFY RESET CODE
 exports.verifyResetCode = (req, res) => {
     const { login, code } = req.body;
@@ -238,13 +211,20 @@ exports.verifyResetCode = (req, res) => {
 };;
 
 // RESET PASSWORD
-exports.resetPassword = (req, res) => {
+exports.resetPassword = async (req, res) => {
     const { login, code, newPassword } = req.body;
 
     if (!newPassword) {
         return res.status(400).json({
             success: false,
-            message: 'New password is required'
+            message: "New password is required"
+        });
+    }
+
+    if (newPassword.length < 6) {
+        return res.status(400).json({
+            success: false,
+            message: "Password must contain at least 6 characters"
         });
     }
 
@@ -259,35 +239,47 @@ exports.resetPassword = (req, res) => {
          ORDER BY prc.id DESC
          LIMIT 1`,
         [login, code],
-        (err, results) => {
+        async (err, results) => {
+
             if (err || !results.length) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Invalid or expired code'
+                    message: "Invalid or expired code"
                 });
             }
 
             const row = results[0];
 
+            // hash new password
+            const hashedPassword = await bcrypt.hash(
+                newPassword,
+                10
+            );
+
             db.query(
-                'UPDATE users SET password = ? WHERE id = ?',
-                [newPassword, row.user_id],
+                `UPDATE users
+                 SET password = ?
+                 WHERE id = ?`,
+                [hashedPassword, row.user_id],
                 (err) => {
+
                     if (err) {
                         return res.status(500).json({
                             success: false,
-                            message: 'Password update failed'
+                            message: "Password update failed"
                         });
                     }
 
                     db.query(
-                        'UPDATE password_reset_codes SET is_used = TRUE WHERE id = ?',
+                        `UPDATE password_reset_codes
+                         SET is_used = TRUE
+                         WHERE id = ?`,
                         [row.id]
                     );
 
-                    res.json({
+                    return res.json({
                         success: true,
-                        message: 'Password reset successfully'
+                        message: "Password reset successfully"
                     });
                 }
             );
