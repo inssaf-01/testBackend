@@ -19,7 +19,7 @@ exports.getAllUsers = (req, res) => {
     const offset = (page - 1) * limit;
 
     db.query(
-        "SELECT id, username, login, role FROM users LIMIT ? OFFSET ?",
+        "SELECT id, username, login, role,status FROM users LIMIT ? OFFSET ?",
         [limit, offset],
         (err, results) => {
 
