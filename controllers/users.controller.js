@@ -4,13 +4,43 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 
-// GET USERS
+// GET USERS avant pagination 
+// exports.getAllUsers = (req, res) => {
+
+//     db.query("SELECT id,username,login,role FROM users", (err, results) => {
+//         if (err) return res.status(500).json(err);
+//         res.json(results);
+//     });
+// };
 exports.getAllUsers = (req, res) => {
 
-    db.query("SELECT id,username,login,role FROM users", (err, results) => {
-        if (err) return res.status(500).json(err);
-        res.json(results);
-    });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    db.query(
+        "SELECT id, username, login, role FROM users LIMIT ? OFFSET ?",
+        [limit, offset],
+        (err, results) => {
+
+            if (err) return res.status(500).json(err);
+
+            db.query(
+                "SELECT COUNT(*) as total FROM users",
+                (err2, countResult) => {
+
+                    if (err2) return res.status(500).json(err2);
+
+                    res.json({
+                        data: results,
+                        total: countResult[0].total,
+                        page,
+                        limit
+                    });
+                }
+            );
+        }
+    );
 };
 
 // CREATE USER
