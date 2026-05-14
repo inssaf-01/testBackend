@@ -9,7 +9,19 @@ exports.login = async (req, res) => {
     const { login, password } = req.body;
 
     db.query(
-        "SELECT * FROM users WHERE login = ?",
+        `
+        SELECT 
+            u.id,
+            u.username,
+            u.login,
+            u.password,
+            u.role_id,
+            u.status,
+            r.name AS role_name
+        FROM users u
+        JOIN roles r ON r.id = u.role_id
+        WHERE u.login = ?
+        `,
         [login],
         async (err, results) => {
 
@@ -28,12 +40,23 @@ exports.login = async (req, res) => {
             }
 
             const token = jwt.sign(
-                { id: user.id, role: user.role, login: user.login },
+                {
+                    id: user.id,
+                    role_id: user.role_id,
+                    role_name: user.role_name,
+                    login: user.login
+                },
                 "SECRET_KEY_123",
                 { expiresIn: "1h" }
             );
 
-            res.json({ token, user });
+            // ❌ ne jamais renvoyer password
+            delete user.password;
+
+            res.json({
+                token,
+                user
+            });
         }
     );
 };

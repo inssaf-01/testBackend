@@ -4,10 +4,11 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 
+
 // GET USERS avant pagination 
 // exports.getAllUsers = (req, res) => {
 
-//     db.query("SELECT id,username,login,role FROM users", (err, results) => {
+//     db.query("SELECT id,username,login,role_id FROM users", (err, results) => {
 //         if (err) return res.status(500).json(err);
 //         res.json(results);
 //     });
@@ -19,20 +20,28 @@ exports.getAllUsers = (req, res) => {
     const offset = (page - 1) * limit;
 
     db.query(
-        "SELECT id, username, login, role,status FROM users LIMIT ? OFFSET ?",
+        `
+        SELECT id, username, login, role_id, status
+        FROM users
+        LIMIT ? OFFSET ?
+        `,
         [limit, offset],
         (err, results) => {
 
             if (err) return res.status(500).json(err);
 
+            const data = results.map(u => ({
+                ...u,
+                role:u.role_id 
+            }));
+
             db.query(
                 "SELECT COUNT(*) as total FROM users",
                 (err2, countResult) => {
-
                     if (err2) return res.status(500).json(err2);
 
                     res.json({
-                        data: results,
+                        data,
                         total: countResult[0].total,
                         page,
                         limit
@@ -41,29 +50,51 @@ exports.getAllUsers = (req, res) => {
             );
         }
     );
+
+};
+exports.getAllRoles = (req, res) => {
+    db.query("SELECT id, name, description FROM roles", (err, results) => {
+        if (err) return res.status(500).json(err);
+
+        res.json({
+            success: true,
+            data: results
+        });
+    });
 };
 
 // CREATE USER
 exports.createUser = async (req, res) => {
 
-    const { username, login, password, role } = req.body;
+    const { username, login, password, role_id } = req.body;
 
-    if (!username || !login || !password) {
+    if (!username || !login || !password || !role_id) {
         return res.status(400).json({
             success: false,
             message: "Missing fields"
         });
     }
-    try {
-        // 🔐 HASH PASSWORD
-        const hashedPassword = await bcrypt.hash(password, 10);
 
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        console.log('req : ', req);
+        console.log('res : ', res);
         db.query(
-            "INSERT INTO users (username, login, password, role) VALUES (?, ?, ?, ?)",
-            [username, login, hashedPassword, role || "USER"],
-            (err, result) => {
+            `
+            INSERT INTO users (username, login, password, role_id)
+            VALUES (?, ?, ?, ?)
+            `,
+            [
+                username,
+                login,
+                hashedPassword,
+                Number(role_id)
+            ],
+            (err) => {
 
                 if (err) {
+                    console.log("MYSQL ERROR :", err);
+
                     if (err.code === "ER_DUP_ENTRY") {
                         return res.status(400).json({
                             success: false,
@@ -85,6 +116,8 @@ exports.createUser = async (req, res) => {
         );
 
     } catch (e) {
+        console.log(e);
+
         return res.status(500).json({
             success: false,
             message: "Hashing error"
@@ -112,44 +145,53 @@ exports.deleteUser = (req, res) => {
 
 // UPDATE USER ROLE
 exports.updateUser = (req, res) => {
+    const { role_id } = req.body;
 
-    const { role } = req.body;
+    if (!role_id) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid role_id"
+        });
+    }
 
     db.query(
-        "UPDATE users SET role = ? WHERE id = ?",
-        [role, req.params.id],
+        "UPDATE users SET role_id = ? WHERE id = ?",
+        [role_id, req.params.id],
         (err) => {
-
             if (err) return res.status(500).json(err);
 
             res.json({
                 success: true,
-                message: "Role updated",
-                data: {
-                    id: req.params.id,
-                    role
-                }
+                message: "Role updated"
             });
         }
     );
 };
+//Statistics par role 
 exports.getUserStats = (req, res) => {
 
     db.query(
-        "SELECT role, COUNT(*) as count FROM users GROUP BY role",
+        `
+        SELECT role_id, COUNT(*) as count
+        FROM users
+        GROUP BY role_id
+        `,
         (err, results) => {
 
             if (err) return res.status(500).json(err);
 
-            let admin = 0;
-            let user = 0;
+            let stats = {
+                USER: 0,
+                ADMIN: 0,
+                SUPER_ADMIN: 0
+            };
 
             results.forEach(r => {
-                if (r.role === 'ADMIN') admin = r.count;
-                if (r.role === 'USER') user = r.count;
+                const roleName = ROLE_MAP_REVERSE[r.role_id];
+                stats[roleName] = r.count;
             });
 
-            res.json({ admin, user });
+            res.json(stats);
         }
     );
 };
