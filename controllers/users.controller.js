@@ -202,10 +202,6 @@ exports.getProfileImage = (req, res) => {
 
             const filePath = path.resolve(results[0].file_path);
 
-            console.log("DB path =", results[0].file_path);
-            console.log("Resolved path =", filePath);
-            console.log("Exists =", fs.existsSync(filePath));
-
             if (!fs.existsSync(filePath)) {
                 return res.status(404).json({
                     success: false,
@@ -284,4 +280,62 @@ exports.uploadProfileImage = (req, res) => {
             }
         );
     });
-}; 
+};
+// UPDATE USER STATUS (activate / archive)
+
+exports.updateUserStatus = (req, res) => {
+    const userId = req.params.id;
+    const { status } = req.body;
+
+    // sécurité simple
+    if (![0, 1, 2].includes(Number(status))) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid status"
+        });
+    }
+
+    db.query(
+        "UPDATE users SET status = ? WHERE id = ?",
+        [status, userId],
+        (err, result) => {
+
+            if (err) {
+                return res.status(500).json({
+                    success: false,
+                    message: "Database error"
+                });
+            }
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "User not found"
+                });
+            }
+
+            let message = "Status updated";
+
+            if (Number(status) === 2) {
+                message = "Utilisateur activé";
+            }
+
+            if (Number(status) === 0) {
+                message = "Utilisateur archivé";
+            }
+
+            if (Number(status) === 1) {
+                message = "Utilisateur mis en attente";
+            }
+
+            res.json({
+                success: true,
+                message,
+                data: {
+                    id: userId,
+                    status
+                }
+            });
+        }
+    );
+};

@@ -12,5 +12,11 @@ router.put('/:id', usersController.updateUser);
 router.get('/stats', usersController.getUserStats);
 router.get('/profile-image/:userId', usersController.getProfileImage);
 router.post('/upload-profile-image', usersController.uploadProfileImage);
+console.log("users routes loaded");
+
+router.patch('/:id/status', (req, res, next) => {
+    console.log("PATCH STATUS HIT");
+    next();
+}, usersController.updateUserStatus);
 
 module.exports = router;

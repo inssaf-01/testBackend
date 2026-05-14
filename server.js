@@ -13,6 +13,10 @@ app.use(express.json());
 app.use('/users', usersRoutes);
 app.use('/auth', authRoutes);
 app.use('/uploads', express.static('uploads'));
+app.all('*', (req, res) => {
+  console.log("REQUEST:", req.method, req.url);
+  res.status(404).send("NOT FOUND");
+});
 
 app.listen(3000, () => {
     console.log('Server running on http://localhost:3000');
