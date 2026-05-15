@@ -32,7 +32,7 @@ exports.getAllUsers = (req, res) => {
 
             const data = results.map(u => ({
                 ...u,
-                role:u.role_id 
+                role: u.role_id
             }));
 
             db.query(
@@ -170,30 +170,18 @@ exports.updateUser = (req, res) => {
 //Statistics par role 
 exports.getUserStats = (req, res) => {
 
-    db.query(
-        `
-        SELECT role_id, COUNT(*) as count
-        FROM users
-        GROUP BY role_id
-        `,
-        (err, results) => {
+    db.query(`
+        SELECT r.name AS role, COUNT(u.id) AS count
+        FROM users u
+        JOIN roles r ON r.id = u.role_id
+        WHERE u.status = 2
+        GROUP BY r.name
+    `, (err, results) => {
 
-            if (err) return res.status(500).json(err);
+        if (err) return res.status(500).json(err);
 
-            let stats = {
-                USER: 0,
-                ADMIN: 0,
-                SUPER_ADMIN: 0
-            };
-
-            results.forEach(r => {
-                const roleName = ROLE_MAP_REVERSE[r.role_id];
-                stats[roleName] = r.count;
-            });
-
-            res.json(stats);
-        }
-    );
+        res.json(results);
+    });
 };
 // Gestion des images 
 const storage = multer.diskStorage({
